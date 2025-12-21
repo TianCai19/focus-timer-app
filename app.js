@@ -16,6 +16,8 @@ const title = document.getElementById('title');
 const videoContainer = document.getElementById('videoContainer');
 const warningOverlay = document.getElementById('warningOverlay');
 const warningText = document.getElementById('warningText');
+const blurBtn = document.getElementById('blurBtn');
+let isBlurred = false;
 
 // 初始化人脸检测
 const faceDetection = new FaceDetection({
@@ -141,5 +143,147 @@ resetBtn.addEventListener('click', () => {
     updateVisualState('idle');
 });
 
+// 模糊切换按钮
+blurBtn.addEventListener('click', () => {
+    isBlurred = !isBlurred;
+    video.classList.toggle('blurred', isBlurred);
+    blurBtn.textContent = isBlurred ? '👁️ 显示视频' : '🙈 模糊视频';
+});
+
 // 页面加载时初始化摄像头
 initCamera();
+
+// ========== 打榜功能 ==========
+const saveRecordBtn = document.getElementById('saveRecordBtn');
+const nameModal = document.getElementById('nameModal');
+const nameInput = document.getElementById('nameInput');
+const confirmSaveBtn = document.getElementById('confirmSaveBtn');
+const cancelSaveBtn = document.getElementById('cancelSaveBtn');
+const leaderboardList = document.getElementById('leaderboardList');
+
+// 从 localStorage 加载排行榜数据
+function loadLeaderboard() {
+    const data = localStorage.getItem('focusLeaderboard');
+    return data ? JSON.parse(data) : [];
+}
+
+// 保存排行榜数据到 localStorage
+function saveLeaderboard(records) {
+    localStorage.setItem('focusLeaderboard', JSON.stringify(records));
+}
+
+// 渲染排行榜
+function renderLeaderboard() {
+    const records = loadLeaderboard();
+    
+    if (records.length === 0) {
+        leaderboardList.innerHTML = '<li class="empty-list">暂无记录，开始专注并保存你的成绩吧！</li>';
+        return;
+    }
+    
+    // 按时长降序排序
+    records.sort((a, b) => b.seconds - a.seconds);
+    
+    leaderboardList.innerHTML = records.map((record, index) => {
+        let rankClass = '';
+        let rankIcon = index + 1;
+        if (index === 0) { rankClass = 'gold'; rankIcon = '🥇'; }
+        else if (index === 1) { rankClass = 'silver'; rankIcon = '🥈'; }
+        else if (index === 2) { rankClass = 'bronze'; rankIcon = '🥉'; }
+        
+        return `
+            <li class="leaderboard-item" data-id="${record.id}">
+                <span class="rank ${rankClass}">${rankIcon}</span>
+                <div class="record-info">
+                    <div class="record-name">${escapeHtml(record.name)}</div>
+                    <div class="record-date">${record.date}</div>
+                </div>
+                <span class="record-time">${formatTime(record.seconds)}</span>
+                <button class="delete-btn" onclick="deleteRecord('${record.id}')">🗑️</button>
+            </li>
+        `;
+    }).join('');
+}
+
+// 防止 XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 生成唯一 ID
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// 保存记录
+function saveRecord(name) {
+    if (totalSeconds === 0) {
+        alert('还没有专注时长，先开始专注吧！');
+        return;
+    }
+    
+    const records = loadLeaderboard();
+    const newRecord = {
+        id: generateId(),
+        name: name.trim() || '匿名用户',
+        seconds: totalSeconds,
+        date: new Date().toLocaleString('zh-CN')
+    };
+    
+    records.push(newRecord);
+    saveLeaderboard(records);
+    renderLeaderboard();
+}
+
+// 删除记录
+function deleteRecord(id) {
+    if (!confirm('确定要删除这条记录吗？')) return;
+    
+    let records = loadLeaderboard();
+    records = records.filter(r => r.id !== id);
+    saveLeaderboard(records);
+    renderLeaderboard();
+}
+
+// 打开保存弹窗
+saveRecordBtn.addEventListener('click', () => {
+    if (totalSeconds === 0) {
+        alert('还没有专注时长，先开始专注吧！');
+        return;
+    }
+    nameModal.classList.add('show');
+    nameInput.focus();
+});
+
+// 确认保存
+confirmSaveBtn.addEventListener('click', () => {
+    saveRecord(nameInput.value);
+    nameModal.classList.remove('show');
+    nameInput.value = '';
+});
+
+// 取消保存
+cancelSaveBtn.addEventListener('click', () => {
+    nameModal.classList.remove('show');
+    nameInput.value = '';
+});
+
+// 回车键保存
+nameInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        confirmSaveBtn.click();
+    }
+});
+
+// 点击弹窗外部关闭
+nameModal.addEventListener('click', (e) => {
+    if (e.target === nameModal) {
+        nameModal.classList.remove('show');
+        nameInput.value = '';
+    }
+});
+
+// 页面加载时渲染排行榜
+renderLeaderboard();

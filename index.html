@@ -153,6 +153,10 @@
             object-fit: cover;
             transform: scaleX(-1);
             display: block;
+            transition: filter 0.3s;
+        }
+        #video.blurred {
+            filter: blur(20px);
         }
         #canvas { display: none; }
         .warning-text {
@@ -209,6 +213,164 @@
             font-size: 1rem;
             color: #aaa;
         }
+        /* 打榜功能样式 */
+        .leaderboard-section {
+            margin-top: 40px;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .leaderboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .leaderboard-title {
+            font-size: 1.5rem;
+            color: #e94560;
+        }
+        .save-record-btn {
+            padding: 10px 25px;
+            background: linear-gradient(135deg, #4caf50, #66bb6a);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .save-record-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(76, 175, 80, 0.4);
+        }
+        .save-record-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .leaderboard-list {
+            list-style: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            margin: 8px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .leaderboard-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .rank {
+            font-size: 1.5rem;
+            font-weight: bold;
+            width: 50px;
+            text-align: center;
+        }
+        .rank.gold { color: #ffd700; }
+        .rank.silver { color: #c0c0c0; }
+        .rank.bronze { color: #cd7f32; }
+        .record-info {
+            flex: 1;
+            text-align: left;
+            margin-left: 15px;
+        }
+        .record-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #fff;
+        }
+        .record-date {
+            font-size: 0.85rem;
+            color: #888;
+        }
+        .record-time {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #4caf50;
+            font-family: 'Courier New', monospace;
+        }
+        .delete-btn {
+            background: transparent;
+            border: none;
+            color: #ff4444;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 5px 10px;
+            opacity: 0.6;
+            transition: opacity 0.3s;
+        }
+        .delete-btn:hover {
+            opacity: 1;
+        }
+        .empty-list {
+            color: #666;
+            padding: 30px;
+            text-align: center;
+        }
+        .name-input-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        .name-input-modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            border: 2px solid #e94560;
+        }
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #e94560;
+        }
+        .modal-content input {
+            padding: 12px 20px;
+            font-size: 1.1rem;
+            border: 2px solid #555;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            width: 250px;
+            margin-bottom: 20px;
+        }
+        .modal-content input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        .modal-buttons button {
+            padding: 12px 30px;
+            margin: 0 10px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .confirm-btn {
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            color: white;
+        }
+        .cancel-btn {
+            background: transparent;
+            border: 2px solid #666 !important;
+            color: #fff;
+        }
     </style>
 </head>
 <body class="idle">
@@ -225,9 +387,33 @@
         <div class="controls">
             <button id="startBtn">开始专注</button>
             <button id="resetBtn">重置</button>
+            <button id="blurBtn">🙈 模糊视频</button>
         </div>
         <div class="stats">
             <p>专注时长会在检测到人脸时累计，离开时自动暂停</p>
+        </div>
+        
+        <!-- 打榜功能 -->
+        <div class="leaderboard-section">
+            <div class="leaderboard-header">
+                <span class="leaderboard-title">🏆 专注排行榜</span>
+                <button class="save-record-btn" id="saveRecordBtn">📝 记录本次成绩</button>
+            </div>
+            <ul class="leaderboard-list" id="leaderboardList">
+                <li class="empty-list">暂无记录，开始专注并保存你的成绩吧！</li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- 输入名字弹窗 -->
+    <div class="name-input-modal" id="nameModal">
+        <div class="modal-content">
+            <h3>🎉 保存专注记录</h3>
+            <input type="text" id="nameInput" placeholder="输入你的名字" maxlength="20">
+            <div class="modal-buttons">
+                <button class="confirm-btn" id="confirmSaveBtn">保存</button>
+                <button class="cancel-btn" id="cancelSaveBtn">取消</button>
+            </div>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
