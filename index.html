@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专注计时器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            transition: background 0.5s ease;
+        }
+        body.focused {
+            background: linear-gradient(135deg, #0d4f3c 0%, #1a3a2e 50%, #0a2f1f 100%);
+        }
+        body.not-focused {
+            background: linear-gradient(135deg, #4a0d0d 0%, #2d0a0a 50%, #1a0505 100%);
+            animation: pulse-bg 1.5s ease-in-out infinite;
+        }
+        body.idle {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+        @keyframes pulse-bg {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
+        }
+        .warning-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+        .warning-overlay.active {
+            opacity: 1;
+            animation: flash-border 1s ease-in-out infinite;
+        }
+        @keyframes flash-border {
+            0%, 100% { box-shadow: inset 0 0 100px 20px rgba(255, 0, 0, 0.3); }
+            50% { box-shadow: inset 0 0 150px 40px rgba(255, 0, 0, 0.5); }
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            position: relative;
+            z-index: 10;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            transition: color 0.5s, text-shadow 0.5s;
+        }
+        h1.focused { color: #4caf50; text-shadow: 0 0 30px rgba(76, 175, 80, 0.5); }
+        h1.not-focused { color: #ff4444; text-shadow: 0 0 30px rgba(255, 68, 68, 0.8); }
+        h1.idle { color: #e94560; }
+        .timer-display {
+            font-size: 6rem;
+            font-weight: bold;
+            margin: 30px 0;
+            font-family: 'Courier New', monospace;
+            transition: color 0.5s, text-shadow 0.5s, transform 0.3s;
+        }
+        .timer-display.focused {
+            color: #4caf50;
+            text-shadow: 0 0 40px rgba(76, 175, 80, 0.6);
+        }
+        .timer-display.not-focused {
+            color: #ff4444;
+            text-shadow: 0 0 50px rgba(255, 68, 68, 0.8);
+            animation: shake 0.5s ease-in-out infinite;
+        }
+        .timer-display.idle {
+            color: #fff;
+            text-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .status {
+            font-size: 1.5rem;
+            padding: 15px 35px;
+            border-radius: 30px;
+            display: inline-block;
+            margin-bottom: 30px;
+            transition: all 0.5s ease;
+            font-weight: bold;
+        }
+        .status.active {
+            background: rgba(76, 175, 80, 0.3);
+            border: 3px solid #4caf50;
+            color: #4caf50;
+            box-shadow: 0 0 30px rgba(76, 175, 80, 0.4);
+        }
+        .status.paused {
+            background: rgba(255, 68, 68, 0.3);
+            border: 3px solid #ff4444;
+            color: #ff4444;
+            box-shadow: 0 0 30px rgba(255, 68, 68, 0.4);
+            animation: pulse-status 1s ease-in-out infinite;
+        }
+        .status.idle-status {
+            background: rgba(255, 152, 0, 0.3);
+            border: 3px solid #ff9800;
+            color: #ff9800;
+        }
+        @keyframes pulse-status {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .video-container {
+            position: relative;
+            margin: 20px auto;
+            border-radius: 20px;
+            overflow: hidden;
+            transition: box-shadow 0.5s, border 0.5s;
+            border: 4px solid transparent;
+        }
+        .video-container.focused {
+            border-color: #4caf50;
+            box-shadow: 0 0 50px rgba(76, 175, 80, 0.5);
+        }
+        .video-container.not-focused {
+            border-color: #ff4444;
+            box-shadow: 0 0 60px rgba(255, 68, 68, 0.6);
+            animation: pulse-border 1s ease-in-out infinite;
+        }
+        .video-container.idle {
+            border-color: #555;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 60px rgba(255, 68, 68, 0.6); }
+            50% { box-shadow: 0 0 100px rgba(255, 68, 68, 0.9); }
+        }
+        #video {
+            width: 480px;
+            height: 360px;
+            object-fit: cover;
+            transform: scaleX(-1);
+            display: block;
+        }
+        #canvas { display: none; }
+        .warning-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ff4444;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .warning-text.show {
+            opacity: 1;
+            animation: blink 0.8s ease-in-out infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .controls { margin-top: 30px; }
+        button {
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        #startBtn {
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            color: white;
+            box-shadow: 0 5px 20px rgba(233, 69, 96, 0.4);
+        }
+        #startBtn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 30px rgba(233, 69, 96, 0.6);
+        }
+        #resetBtn {
+            background: transparent;
+            color: white;
+            border: 2px solid #e94560;
+        }
+        #resetBtn:hover {
+            background: #e94560;
+        }
+        .stats {
+            margin-top: 25px;
+            font-size: 1rem;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body class="idle">
+    <div class="warning-overlay" id="warningOverlay"></div>
+    <div class="container">
+        <h1 class="idle" id="title">🎯 专注计时器</h1>
+        <div class="status idle-status" id="status">等待开始</div>
+        <div class="timer-display idle" id="timer">00:00:00</div>
+        <div class="video-container idle" id="videoContainer">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+            <div class="warning-text" id="warningText">⚠️ 请回到屏幕前</div>
+        </div>
+        <div class="controls">
+            <button id="startBtn">开始专注</button>
+            <button id="resetBtn">重置</button>
+        </div>
+        <div class="stats">
+            <p>专注时长会在检测到人脸时累计，离开时自动暂停</p>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="app.js"></script>
+</body>
+</html>
