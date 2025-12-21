@@ -2,8 +2,14 @@
 let isRunning = false;
 let totalSeconds = 0;
 let timerInterval = null;
-let faceDetected = false;
 let camera = null;
+let cocoModel = null;
+let isModelLoading = false;
+
+// 检测模式: 'face' 或 'phone'
+let detectionMode = 'face';
+let faceDetected = false;
+let phoneDetected = false;
 
 // DOM 元素
 const video = document.getElementById('video');
@@ -19,33 +25,47 @@ const warningText = document.getElementById('warningText');
 const blurBtn = document.getElementById('blurBtn');
 let isBlurred = false;
 
-// 初始化人脸检测
-const faceDetection = new FaceDetection({
-    locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
-    }
-});
+// 人脸检测器（延迟初始化）
+let faceDetection = null;
+let faceDetectionRunning = false;
 
-faceDetection.setOptions({
-    model: 'short',
-    minDetectionConfidence: 0.5
-});
+function initFaceDetection() {
+    if (faceDetection) return;
+    
+    faceDetection = new FaceDetection({
+        locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
+        }
+    });
 
-faceDetection.onResults(onResults);
+    faceDetection.setOptions({
+        model: 'short',
+        minDetectionConfidence: 0.5
+    });
+
+    faceDetection.onResults(onFaceResults);
+}
 
 // 更新视觉状态
 function updateVisualState(state) {
-    // state: 'focused', 'not-focused', 'idle'
-    document.body.className = state;
-    title.className = state;
-    timerDisplay.className = 'timer-display ' + state;
-    videoContainer.className = 'video-container ' + state;
+    // state: 'focused', 'not-focused', 'idle', 'phone-detected'
+    document.body.className = state === 'phone-detected' ? 'not-focused' : state;
+    title.className = state === 'phone-detected' ? 'not-focused' : state;
+    timerDisplay.className = 'timer-display ' + (state === 'phone-detected' ? 'not-focused' : state);
+    videoContainer.className = 'video-container ' + (state === 'phone-detected' ? 'not-focused' : state);
     
-    if (state === 'not-focused') {
+    if (state === 'phone-detected') {
         warningOverlay.classList.add('active');
+        warningText.textContent = '📱 放下手机！';
         warningText.classList.add('show');
         statusEl.className = 'status paused';
-        statusEl.textContent = '⚠️ 未检测到人脸！';
+        statusEl.textContent = '📱 检测到手机！';
+    } else if (state === 'not-focused') {
+        warningOverlay.classList.add('active');
+        warningText.textContent = '⚠️ 请回到屏幕前';
+        warningText.classList.add('show');
+        statusEl.className = 'status paused';
+        statusEl.textContent = detectionMode === 'face' ? '⚠️ 未检测到人脸！' : '⚠️ 未检测到手机';
     } else if (state === 'focused') {
         warningOverlay.classList.remove('active');
         warningText.classList.remove('show');
@@ -60,14 +80,35 @@ function updateVisualState(state) {
 }
 
 // 人脸检测结果处理
-function onResults(results) {
+function onFaceResults(results) {
+    if (detectionMode !== 'face') return;
+    
     faceDetected = results.detections && results.detections.length > 0;
     
     if (isRunning) {
+        updateFocusState();
+    }
+}
+
+// 统一更新专注状态
+function updateFocusState() {
+    if (!isRunning) return;
+    
+    if (detectionMode === 'face') {
         if (faceDetected) {
             updateVisualState('focused');
+            stopAlertMusic();
         } else {
             updateVisualState('not-focused');
+            playAlertMusic();
+        }
+    } else if (detectionMode === 'phone') {
+        if (phoneDetected) {
+            updateVisualState('phone-detected');
+            playAlertMusic();
+        } else {
+            updateVisualState('focused');
+            stopAlertMusic();
         }
     }
 }
@@ -79,20 +120,80 @@ async function initCamera() {
             video: { width: 480, height: 360, facingMode: 'user' }
         });
         video.srcObject = stream;
+        await video.play();
         
-        camera = new Camera(video, {
-            onFrame: async () => {
-                await faceDetection.send({ image: video });
-            },
-            width: 480,
-            height: 360
-        });
-        camera.start();
+        // 默认启动人脸检测模式
+        startFaceDetectionMode();
     } catch (err) {
         console.error('摄像头访问失败:', err);
         statusEl.textContent = '❌ 无法访问摄像头';
         statusEl.className = 'status paused';
     }
+}
+
+// 人脸检测循环
+async function faceDetectionLoop() {
+    if (!faceDetectionRunning || detectionMode !== 'face') return;
+    
+    if (faceDetection && video.readyState >= 2) {
+        await faceDetection.send({ image: video });
+    }
+    
+    requestAnimationFrame(faceDetectionLoop);
+}
+
+// 启动人脸检测模式
+function startFaceDetectionMode() {
+    stopPhoneDetection();
+    detectionMode = 'face';
+    faceDetected = false;
+    
+    initFaceDetection();
+    
+    faceDetectionRunning = true;
+    faceDetectionLoop();
+    
+    console.log('人脸检测模式已启动');
+}
+
+// 启动手机检测模式
+async function startPhoneDetectionMode() {
+    // 停止人脸检测循环
+    faceDetectionRunning = false;
+    
+    detectionMode = 'phone';
+    phoneDetected = false;
+    
+    const phoneStatusEl = document.getElementById('phoneStatus');
+    
+    // 加载模型
+    if (!cocoModel) {
+        if (isModelLoading) return;
+        
+        isModelLoading = true;
+        phoneStatusEl.textContent = '加载模型中...';
+        phoneStatusEl.className = 'phone-status loading';
+        
+        try {
+            cocoModel = await cocoSsd.load();
+            console.log('COCO-SSD 模型加载完成');
+        } catch (err) {
+            console.error('模型加载失败:', err);
+            phoneStatusEl.textContent = '加载失败';
+            phoneStatusEl.className = 'phone-status';
+            document.getElementById('phoneDetectionToggle').checked = false;
+            isModelLoading = false;
+            // 回退到人脸检测
+            startFaceDetectionMode();
+            return;
+        }
+        isModelLoading = false;
+    }
+    
+    phoneStatusEl.textContent = '检测中...';
+    phoneStatusEl.className = 'phone-status ready';
+    
+    startPhoneDetection();
 }
 
 // 格式化时间显示
@@ -107,7 +208,15 @@ function formatTime(seconds) {
 
 // 更新计时器
 function updateTimer() {
-    if (isRunning && faceDetected) {
+    let canCount = false;
+    
+    if (detectionMode === 'face') {
+        canCount = faceDetected;
+    } else if (detectionMode === 'phone') {
+        canCount = !phoneDetected; // 没检测到手机时才计时
+    }
+    
+    if (isRunning && canCount) {
         totalSeconds++;
         timerDisplay.textContent = formatTime(totalSeconds);
     }
@@ -119,17 +228,14 @@ startBtn.addEventListener('click', () => {
         isRunning = true;
         startBtn.textContent = '暂停';
         timerInterval = setInterval(updateTimer, 1000);
-        if (faceDetected) {
-            updateVisualState('focused');
-        } else {
-            updateVisualState('not-focused');
-        }
+        updateFocusState();
     } else {
         isRunning = false;
         startBtn.textContent = '继续';
         clearInterval(timerInterval);
         updateVisualState('idle');
         statusEl.textContent = '⏸️ 已暂停';
+        stopAlertMusic();
     }
 });
 
@@ -141,6 +247,7 @@ resetBtn.addEventListener('click', () => {
     timerDisplay.textContent = '00:00:00';
     startBtn.textContent = '开始专注';
     updateVisualState('idle');
+    stopAlertMusic();
 });
 
 // 模糊切换按钮
@@ -152,6 +259,122 @@ blurBtn.addEventListener('click', () => {
 
 // 页面加载时初始化摄像头
 initCamera();
+
+// ========== 提醒音乐功能 ==========
+const selectAudioBtn = document.getElementById('selectAudioBtn');
+const audioFileInput = document.getElementById('audioFileInput');
+const audioNameEl = document.getElementById('audioName');
+
+let alertAudio = new Audio('59323269-1-192.mp3'); // 默认音频
+alertAudio.loop = true;
+let isAlertPlaying = false;
+
+// 更新显示
+audioNameEl.textContent = '默认音乐';
+audioNameEl.className = 'audio-name active';
+
+selectAudioBtn.addEventListener('click', () => {
+    audioFileInput.click();
+});
+
+audioFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        // 释放之前的音频
+        if (alertAudio) {
+            alertAudio.pause();
+            if (alertAudio.src.startsWith('blob:')) {
+                URL.revokeObjectURL(alertAudio.src);
+            }
+        }
+        
+        alertAudio = new Audio(URL.createObjectURL(file));
+        alertAudio.loop = true;
+        audioNameEl.textContent = file.name;
+        audioNameEl.className = 'audio-name active';
+        console.log('已选择音乐:', file.name);
+    }
+});
+
+// 播放提醒音乐
+function playAlertMusic() {
+    if (alertAudio && !isAlertPlaying) {
+        alertAudio.play().catch(err => console.log('音频播放失败:', err));
+        isAlertPlaying = true;
+    }
+}
+
+// 停止提醒音乐
+function stopAlertMusic() {
+    if (alertAudio && isAlertPlaying) {
+        alertAudio.pause();
+        alertAudio.currentTime = 0;
+        isAlertPlaying = false;
+    }
+}
+
+// ========== 手机检测功能 ==========
+const phoneDetectionToggle = document.getElementById('phoneDetectionToggle');
+const phoneStatusEl = document.getElementById('phoneStatus');
+
+let phoneDetectionInterval = null;
+
+function startPhoneDetection() {
+    if (phoneDetectionInterval) return;
+    
+    phoneDetectionInterval = setInterval(async () => {
+        if (detectionMode !== 'phone' || !cocoModel) return;
+        
+        try {
+            const predictions = await cocoModel.detect(video);
+            const hasPhone = predictions.some(p => 
+                p.class === 'cell phone' && p.score > 0.5
+            );
+            
+            if (hasPhone !== phoneDetected) {
+                phoneDetected = hasPhone;
+                if (phoneDetected) {
+                    phoneStatusEl.textContent = '检测到手机!';
+                    phoneStatusEl.className = 'phone-status detected';
+                } else {
+                    phoneStatusEl.textContent = '检测中...';
+                    phoneStatusEl.className = 'phone-status ready';
+                }
+                if (isRunning) {
+                    updateFocusState();
+                }
+            }
+        } catch (err) {
+            console.error('手机检测错误:', err);
+        }
+    }, 500);
+}
+
+function stopPhoneDetection() {
+    if (phoneDetectionInterval) {
+        clearInterval(phoneDetectionInterval);
+        phoneDetectionInterval = null;
+    }
+    phoneDetected = false;
+    phoneStatusEl.textContent = '';
+    phoneStatusEl.className = 'phone-status';
+}
+
+// 手机检测开关（模式切换）
+phoneDetectionToggle.addEventListener('change', (e) => {
+    if (e.target.checked) {
+        // 切换到手机检测模式
+        startPhoneDetectionMode();
+    } else {
+        // 切换回人脸检测模式
+        startFaceDetectionMode();
+    }
+    
+    if (isRunning) {
+        updateFocusState();
+    }
+});
+
 
 // ========== 打榜功能 ==========
 const saveRecordBtn = document.getElementById('saveRecordBtn');

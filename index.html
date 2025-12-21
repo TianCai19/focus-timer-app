@@ -371,6 +371,109 @@
             border: 2px solid #666 !important;
             color: #fff;
         }
+        /* 手机检测开关样式 */
+        .phone-detection-toggle {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+        .toggle-label {
+            font-size: 1rem;
+            color: #ccc;
+        }
+        .phone-status {
+            font-size: 0.9rem;
+            padding: 4px 12px;
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .phone-status.loading {
+            background: rgba(255, 152, 0, 0.3);
+            color: #ff9800;
+        }
+        .phone-status.ready {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4caf50;
+        }
+        .phone-status.detected {
+            background: rgba(255, 68, 68, 0.3);
+            color: #ff4444;
+            animation: pulse-status 0.5s ease-in-out infinite;
+        }
+        /* 音频选择器样式 */
+        .audio-selector {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .select-audio-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #9c27b0, #ba68c8);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        .select-audio-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(156, 39, 176, 0.4);
+        }
+        .audio-name {
+            font-size: 0.9rem;
+            color: #888;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .audio-name.active {
+            color: #ba68c8;
+        }
     </style>
 </head>
 <body class="idle">
@@ -388,6 +491,19 @@
             <button id="startBtn">开始专注</button>
             <button id="resetBtn">重置</button>
             <button id="blurBtn">🙈 模糊视频</button>
+        </div>
+        <div class="phone-detection-toggle">
+            <label class="toggle-switch">
+                <input type="checkbox" id="phoneDetectionToggle">
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">📱 手机检测模式</span>
+            <span class="phone-status" id="phoneStatus"></span>
+        </div>
+        <div class="audio-selector">
+            <button class="select-audio-btn" id="selectAudioBtn">🎵 选择提醒音乐</button>
+            <span class="audio-name" id="audioName">未选择</span>
+            <input type="file" id="audioFileInput" accept="audio/*" style="display: none;">
         </div>
         <div class="stats">
             <p>专注时长会在检测到人脸时累计，离开时自动暂停</p>
@@ -418,6 +534,8 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <script src="app.js"></script>
 </body>
 </html>
