@@ -485,6 +485,94 @@
             color: #ba68c8;
         }
 
+        /* 沉浸式模式：隐藏非必要区域，显示 HUD 与激励文案 */
+        .immersive .controls,
+        .immersive .phone-detection-toggle,
+        .immersive .audio-selector,
+        .immersive .stats,
+        .immersive .leaderboard-section {
+            display: none;
+        }
+
+        .motivation-text {
+            margin-top: 14px;
+            font-size: 1.05rem;
+            color: rgba(255, 255, 255, 0.85);
+            min-height: 1.6em;
+            letter-spacing: 0.2px;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 0.9;
+        }
+        .motivation-text.subtle {
+            opacity: 0.7;
+        }
+
+        .immersive-hud {
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 300;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .immersive .immersive-hud {
+            display: flex;
+        }
+        .immersive-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #888;
+            box-shadow: 0 0 0 rgba(136, 136, 136, 0.0);
+            animation: breathe 2.2s ease-in-out infinite;
+        }
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.65; }
+            50% { transform: scale(1.35); opacity: 1; }
+        }
+        body.focused.immersive .immersive-dot {
+            background: #4caf50;
+            box-shadow: 0 0 16px rgba(76, 175, 80, 0.55);
+        }
+        body.not-focused.immersive .immersive-dot {
+            background: #ff4444;
+            box-shadow: 0 0 18px rgba(255, 68, 68, 0.6);
+            animation-duration: 1.1s;
+        }
+        body.idle.immersive .immersive-dot {
+            background: #999;
+            box-shadow: 0 0 10px rgba(200, 200, 200, 0.25);
+        }
+        .immersive-label {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.9);
+            white-space: nowrap;
+            max-width: 46vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .hud-btn {
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            border-radius: 999px;
+            min-height: 36px;
+            margin: 0;
+            box-shadow: none;
+        }
+        .hud-btn.secondary {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            color: #fff;
+        }
+
         /* 移动端适配 */
         @media (max-width: 480px) {
             body {
@@ -574,15 +662,33 @@
             .toggle-label {
                 font-size: 0.95rem;
             }
+            .immersive-hud {
+                top: 10px;
+                padding: 9px 10px;
+                gap: 8px;
+            }
+            .immersive-label {
+                max-width: 52vw;
+            }
+            .motivation-text {
+                font-size: 0.98rem;
+            }
         }
     </style>
 </head>
 <body class="idle">
     <div class="warning-overlay" id="warningOverlay"></div>
+    <div class="immersive-hud" id="immersiveHud" aria-hidden="true">
+        <span class="immersive-dot" id="immersiveDot"></span>
+        <span class="immersive-label" id="immersiveLabel">等待开始</span>
+        <button class="hud-btn" id="hudToggleBtn">⏸️ 暂停</button>
+        <button class="hud-btn secondary" id="hudExitBtn">⏹ 退出</button>
+    </div>
     <div class="container">
         <h1 class="idle" id="title">🎯 专注计时器</h1>
         <div class="status idle-status" id="status">等待开始</div>
         <div class="timer-display idle" id="timer">00:00:00</div>
+        <div class="motivation-text subtle" id="motivationText"></div>
         <div class="video-container idle" id="videoContainer">
             <video id="video" autoplay playsinline></video>
             <canvas id="canvas"></canvas>
