@@ -24,11 +24,12 @@ const warningOverlay = document.getElementById('warningOverlay');
 const warningText = document.getElementById('warningText');
 const blurBtn = document.getElementById('blurBtn');
 const immersiveHud = document.getElementById('immersiveHud');
-const immersiveLabel = document.getElementById('immersiveLabel');
 const hudToggleBtn = document.getElementById('hudToggleBtn');
-const hudExitBtn = document.getElementById('hudExitBtn');
+const immersiveBtn = document.getElementById('immersiveBtn');
+const quitImmersiveBtn = document.getElementById('quitImmersiveBtn');
+let isImmersive = false;
 const motivationTextEl = document.getElementById('motivationText');
-let isBlurred = false;
+let isBlurred = true;
 
 // 激励语料库（50 条）
 const MOTIVATION_PHRASES = [
@@ -119,12 +120,12 @@ function setMotivation(text, subtle = false) {
 }
 
 function syncHudControls() {
-    if (!hudToggleBtn || !immersiveLabel) return;
+    if (!hudToggleBtn) return;
     // 复用 startBtn 当前文本来判断按钮显示
     const t = startBtn?.textContent || '';
-    if (t.includes('暂停')) hudToggleBtn.textContent = '⏸️ 暂停';
-    else if (t.includes('继续')) hudToggleBtn.textContent = '▶️ 继续';
-    else hudToggleBtn.textContent = '▶️ 开始';
+    if (t.includes('暂停')) hudToggleBtn.textContent = '⏸️';
+    else if (t.includes('继续')) hudToggleBtn.textContent = '▶️';
+    else hudToggleBtn.textContent = '▶️';
 }
 
 function startMotivationLoop() {
@@ -150,11 +151,7 @@ if (hudToggleBtn) {
         startBtn?.click();
     });
 }
-if (hudExitBtn) {
-    hudExitBtn.addEventListener('click', () => {
-        resetBtn?.click();
-    });
-}
+
 
 // 人脸检测器（延迟初始化）
 let faceDetection = null;
@@ -187,7 +184,6 @@ function updateVisualState(state) {
     applyStateClass(videoContainer, normalized, 'video-container');
 
     // 进入专注时自动启用沉浸模式；暂停/重置会关闭
-    setImmersive(isRunning);
     
     if (state === 'phone-detected') {
         warningOverlay.classList.add('active');
@@ -195,30 +191,26 @@ function updateVisualState(state) {
         warningText.classList.add('show');
         statusEl.className = 'status paused';
         statusEl.textContent = '📱 检测到手机！';
-        if (immersiveLabel) immersiveLabel.textContent = '检测到手机';
-        if (currentVisualState !== state) setMotivation('把手机放下，注意力留给你正在做的事。', false);
+                if (currentVisualState !== state) setMotivation('把手机放下，注意力留给你正在做的事。', false);
     } else if (state === 'not-focused') {
         warningOverlay.classList.add('active');
         warningText.textContent = '⚠️ 请回到屏幕前';
         warningText.classList.add('show');
         statusEl.className = 'status paused';
         statusEl.textContent = detectionMode === 'face' ? '⚠️ 未检测到人脸！' : '⚠️ 未检测到手机';
-        if (immersiveLabel) immersiveLabel.textContent = '注意力偏离';
-        if (currentVisualState !== state) setMotivation('没关系，回到屏幕前，继续专注。', false);
+                if (currentVisualState !== state) setMotivation('没关系，回到屏幕前，继续专注。', false);
     } else if (state === 'focused') {
         warningOverlay.classList.remove('active');
         warningText.classList.remove('show');
         statusEl.className = 'status active';
         statusEl.textContent = '✨ 专注中...';
-        if (immersiveLabel) immersiveLabel.textContent = '专注中';
-        if (currentVisualState !== state) setMotivation(pickMotivation(), false);
+                if (currentVisualState !== state) setMotivation(pickMotivation(), false);
     } else {
         warningOverlay.classList.remove('active');
         warningText.classList.remove('show');
         statusEl.className = 'status idle-status';
         statusEl.textContent = '等待开始';
-        if (immersiveLabel) immersiveLabel.textContent = '等待开始';
-        if (currentVisualState !== state) setMotivation('准备好就开始一段专注。', true);
+                if (currentVisualState !== state) setMotivation('准备好就开始一段专注。', true);
     }
 
     currentVisualState = state;
@@ -386,9 +378,7 @@ startBtn.addEventListener('click', () => {
         clearInterval(timerInterval);
         updateVisualState('idle');
         statusEl.textContent = '⏸️ 已暂停';
-        if (immersiveLabel) immersiveLabel.textContent = '已暂停';
-        setMotivation('暂停一下也没关系，准备好就继续。', true);
-        setImmersive(false);
+                setMotivation('暂停一下也没关系，准备好就继续。', true);
         stopMotivationLoop();
         stopAlertMusic();
     }
@@ -402,7 +392,6 @@ resetBtn.addEventListener('click', () => {
     timerDisplay.textContent = '00:00:00';
     startBtn.textContent = '开始专注';
     updateVisualState('idle');
-    setImmersive(false);
     stopMotivationLoop();
     stopAlertMusic();
 });
@@ -670,3 +659,16 @@ nameModal.addEventListener('click', (e) => {
 
 // 页面加载时渲染排行榜
 renderLeaderboard();
+
+if (immersiveBtn) {
+    immersiveBtn.addEventListener('click', () => {
+        isImmersive = true;
+        setImmersive(true);
+    });
+}
+if (quitImmersiveBtn) {
+    quitImmersiveBtn.addEventListener('click', () => {
+        isImmersive = false;
+        setImmersive(false);
+    });
+}
