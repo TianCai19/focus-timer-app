@@ -23,7 +23,135 @@ const videoContainer = document.getElementById('videoContainer');
 const warningOverlay = document.getElementById('warningOverlay');
 const warningText = document.getElementById('warningText');
 const blurBtn = document.getElementById('blurBtn');
-let isBlurred = false;
+const immersiveHud = document.getElementById('immersiveHud');
+const hudToggleBtn = document.getElementById('hudToggleBtn');
+const immersiveBtn = document.getElementById('immersiveBtn');
+const quitImmersiveBtn = document.getElementById('quitImmersiveBtn');
+let isImmersive = false;
+const motivationTextEl = document.getElementById('motivationText');
+let isBlurred = true;
+
+// 激励语料库（50 条）
+const MOTIVATION_PHRASES = [
+    '把注意力放在下一分钟就好。',
+    '你正在变得更强大。',
+    '先开始，之后再变好。',
+    '专注不是压抑，而是选择。',
+    '每一次回到当下，都是胜利。',
+    '今天的你，比昨天更自律一点。',
+    '别急，稳住节奏。',
+    '只做一件事，就已经很了不起。',
+    '你能把这段时间守住。',
+    '把“想做”变成“正在做”。',
+    '现在做的，会在未来回报你。',
+    '慢一点，但不停。',
+    '把分心当作提醒：回到屏幕前。',
+    '你在训练自己的注意力肌肉。',
+    '专注是送给自己的礼物。',
+    '你不需要完美，只需要持续。',
+    '每 1 分钟都算数。',
+    '保持清醒，保持简单。',
+    '做难事时，先把呼吸放慢。',
+    '此刻专注，未来更自由。',
+    '把手机放下，把目标拿起。',
+    '下一步最重要。',
+    '把注意力交给任务。',
+    '你比分心更有力量。',
+    '今天的成果来自现在的坚持。',
+    '一次只做一件事。',
+    '你已经开始了，继续。',
+    '现在的专注，正在累积。',
+    '不必焦虑，把手头这一步做好。',
+    '少想一点，多做一点。',
+    '能量在流动，别停。',
+    '把目标拆小，马上行动。',
+    '你配得上这段高质量时间。',
+    '把注意力放回眼前。',
+    '你正在建立稳定的节奏。',
+    '先完成，再优化。',
+    '在这段时间里，你只需要专注。',
+    '今天的努力，会被时间看见。',
+    '你很接近了，再坚持一会儿。',
+    '把干扰关在门外。',
+    '稳住，你做得到。',
+    '深呼吸，回到任务。',
+    '专注让你更快结束。',
+    '这不是苦撑，是成长。',
+    '把注意力当作资产来管理。',
+    '把分心视作噪音，忽略它。',
+    '此刻专注，就是最好的自爱。',
+    '你正在赢回自己的时间。',
+    '让今天的你为明天铺路。',
+    '别担心进度，先把这一段守住。'
+];
+
+let currentVisualState = 'idle';
+let lastMotivation = '';
+let motivationInterval = null;
+
+const STATE_CLASSES = ['focused', 'not-focused', 'idle'];
+
+function applyStateClass(el, stateClass, requiredBaseClass) {
+    if (!el) return;
+    if (requiredBaseClass) el.classList.add(requiredBaseClass);
+    for (const c of STATE_CLASSES) el.classList.remove(c);
+    el.classList.add(stateClass);
+}
+
+function setImmersive(active) {
+    document.body.classList.toggle('immersive', active);
+    if (immersiveHud) immersiveHud.setAttribute('aria-hidden', active ? 'false' : 'true');
+}
+
+function pickMotivation() {
+    if (!MOTIVATION_PHRASES.length) return '';
+    let next = lastMotivation;
+    for (let i = 0; i < 5 && next === lastMotivation; i++) {
+        next = MOTIVATION_PHRASES[Math.floor(Math.random() * MOTIVATION_PHRASES.length)];
+    }
+    lastMotivation = next;
+    return next;
+}
+
+function setMotivation(text, subtle = false) {
+    if (!motivationTextEl) return;
+    motivationTextEl.textContent = text || '';
+    motivationTextEl.classList.toggle('subtle', subtle);
+}
+
+function syncHudControls() {
+    if (!hudToggleBtn) return;
+    // 复用 startBtn 当前文本来判断按钮显示
+    const t = startBtn?.textContent || '';
+    if (t.includes('暂停')) hudToggleBtn.textContent = '⏸️';
+    else if (t.includes('继续')) hudToggleBtn.textContent = '▶️';
+    else hudToggleBtn.textContent = '▶️';
+}
+
+function startMotivationLoop() {
+    stopMotivationLoop();
+    motivationInterval = setInterval(() => {
+        if (!isRunning) return;
+        if (currentVisualState === 'focused') {
+            setMotivation(pickMotivation(), false);
+        }
+    }, 45000);
+}
+
+function stopMotivationLoop() {
+    if (motivationInterval) {
+        clearInterval(motivationInterval);
+        motivationInterval = null;
+    }
+}
+
+// HUD 按钮绑定（通过复用原按钮逻辑保证一致）
+if (hudToggleBtn) {
+    hudToggleBtn.addEventListener('click', () => {
+        startBtn?.click();
+    });
+}
+
 
 // 人脸检测器（延迟初始化）
 let faceDetection = null;
@@ -49,10 +177,13 @@ function initFaceDetection() {
 // 更新视觉状态
 function updateVisualState(state) {
     // state: 'focused', 'not-focused', 'idle', 'phone-detected'
-    document.body.className = state === 'phone-detected' ? 'not-focused' : state;
-    title.className = state === 'phone-detected' ? 'not-focused' : state;
-    timerDisplay.className = 'timer-display ' + (state === 'phone-detected' ? 'not-focused' : state);
-    videoContainer.className = 'video-container ' + (state === 'phone-detected' ? 'not-focused' : state);
+    const normalized = state === 'phone-detected' ? 'not-focused' : state;
+    applyStateClass(document.body, normalized);
+    applyStateClass(title, normalized);
+    applyStateClass(timerDisplay, normalized, 'timer-display');
+    applyStateClass(videoContainer, normalized, 'video-container');
+
+    // 进入专注时自动启用沉浸模式；暂停/重置会关闭
     
     if (state === 'phone-detected') {
         warningOverlay.classList.add('active');
@@ -60,23 +191,30 @@ function updateVisualState(state) {
         warningText.classList.add('show');
         statusEl.className = 'status paused';
         statusEl.textContent = '📱 检测到手机！';
+                if (currentVisualState !== state) setMotivation('把手机放下，注意力留给你正在做的事。', false);
     } else if (state === 'not-focused') {
         warningOverlay.classList.add('active');
         warningText.textContent = '⚠️ 请回到屏幕前';
         warningText.classList.add('show');
         statusEl.className = 'status paused';
         statusEl.textContent = detectionMode === 'face' ? '⚠️ 未检测到人脸！' : '⚠️ 未检测到手机';
+                if (currentVisualState !== state) setMotivation('没关系，回到屏幕前，继续专注。', false);
     } else if (state === 'focused') {
         warningOverlay.classList.remove('active');
         warningText.classList.remove('show');
         statusEl.className = 'status active';
         statusEl.textContent = '✨ 专注中...';
+                if (currentVisualState !== state) setMotivation(pickMotivation(), false);
     } else {
         warningOverlay.classList.remove('active');
         warningText.classList.remove('show');
         statusEl.className = 'status idle-status';
         statusEl.textContent = '等待开始';
+                if (currentVisualState !== state) setMotivation('准备好就开始一段专注。', true);
     }
+
+    currentVisualState = state;
+    syncHudControls();
 }
 
 // 人脸检测结果处理
@@ -232,6 +370,7 @@ startBtn.addEventListener('click', () => {
         isRunning = true;
         startBtn.textContent = '暂停';
         timerInterval = setInterval(updateTimer, 1000);
+        startMotivationLoop();
         updateFocusState();
     } else {
         isRunning = false;
@@ -239,6 +378,8 @@ startBtn.addEventListener('click', () => {
         clearInterval(timerInterval);
         updateVisualState('idle');
         statusEl.textContent = '⏸️ 已暂停';
+                setMotivation('暂停一下也没关系，准备好就继续。', true);
+        stopMotivationLoop();
         stopAlertMusic();
     }
 });
@@ -251,6 +392,7 @@ resetBtn.addEventListener('click', () => {
     timerDisplay.textContent = '00:00:00';
     startBtn.textContent = '开始专注';
     updateVisualState('idle');
+    stopMotivationLoop();
     stopAlertMusic();
 });
 
@@ -263,6 +405,9 @@ blurBtn.addEventListener('click', () => {
 
 // 页面加载时初始化摄像头
 initCamera();
+
+// 初始化激励文案
+setMotivation('准备好就开始一段专注。', true);
 
 // ========== 提醒音乐功能 ==========
 const selectAudioBtn = document.getElementById('selectAudioBtn');
@@ -514,3 +659,16 @@ nameModal.addEventListener('click', (e) => {
 
 // 页面加载时渲染排行榜
 renderLeaderboard();
+
+if (immersiveBtn) {
+    immersiveBtn.addEventListener('click', () => {
+        isImmersive = true;
+        setImmersive(true);
+    });
+}
+if (quitImmersiveBtn) {
+    quitImmersiveBtn.addEventListener('click', () => {
+        isImmersive = false;
+        setImmersive(false);
+    });
+}

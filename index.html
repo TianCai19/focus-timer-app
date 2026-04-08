@@ -485,6 +485,116 @@
             color: #ba68c8;
         }
 
+        /* 沉浸式模式：隐藏非必要区域，显示 HUD 与激励文案 */
+        .immersive .controls,
+        .immersive .phone-detection-toggle,
+        .immersive .audio-selector,
+        .immersive .stats,
+        .immersive .leaderboard-section,
+        .immersive #videoContainer,
+        .immersive #title,
+        .immersive #status {
+            display: none;
+        }
+
+        
+        .quit-immersive-btn {
+            min-width: 44px;
+            min-height: 44px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.25);
+            color: white;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: none;
+            margin: 0;
+            padding: 0 14px;
+        }
+        .quit-immersive-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .motivation-text {
+            margin-top: 14px;
+            margin-bottom: 20px;
+            padding: 0 20px;
+            font-size: 1.05rem;
+            color: rgba(255, 255, 255, 0.85);
+            min-height: 3em;
+            line-height: 1.5;
+            letter-spacing: 0.2px;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 0.9;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        .motivation-text.subtle {
+            opacity: 0.7;
+        }
+
+        .immersive-hud {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .immersive .immersive-hud {
+            display: flex;
+        }
+        .immersive-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #888;
+            box-shadow: 0 0 0 rgba(136, 136, 136, 0.0);
+            animation: breathe 2.2s ease-in-out infinite;
+        }
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.65; }
+            50% { transform: scale(1.35); opacity: 1; }
+        }
+        body.focused.immersive .immersive-dot {
+            background: #4caf50;
+            box-shadow: 0 0 16px rgba(76, 175, 80, 0.55);
+        }
+        body.not-focused.immersive .immersive-dot {
+            background: #ff4444;
+            box-shadow: 0 0 18px rgba(255, 68, 68, 0.6);
+            animation-duration: 1.1s;
+        }
+        body.idle.immersive .immersive-dot {
+            background: #999;
+            box-shadow: 0 0 10px rgba(200, 200, 200, 0.25);
+        }
+        .immersive-label {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.9);
+            white-space: nowrap;
+            max-width: 46vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .hud-btn {
+            padding: 10px 16px;
+            font-size: 0.95rem;
+            border-radius: 999px;
+            min-height: 44px;
+            min-width: 44px;
+            margin: 0;
+            box-shadow: none;
+        }
+        .hud-btn.secondary {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            color: #fff;
+        }
+
         /* 移动端适配 */
         @media (max-width: 480px) {
             body {
@@ -574,6 +684,24 @@
             .toggle-label {
                 font-size: 0.95rem;
             }
+            .immersive-hud {
+                top: 10px;
+                padding: 9px 10px;
+                gap: 8px;
+            }
+            .immersive-label {
+                max-width: 52vw;
+            }
+            .motivation-text {
+                font-size: 0.98rem;
+            }
+            .immersive-hud {
+                gap: 12px;
+            }
+            .hud-btn,
+            .quit-immersive-btn {
+                font-size: 1rem;
+            }
         }
     </style>
 </head>
@@ -583,15 +711,21 @@
         <h1 class="idle" id="title">🎯 专注计时器</h1>
         <div class="status idle-status" id="status">等待开始</div>
         <div class="timer-display idle" id="timer">00:00:00</div>
+        <div class="motivation-text subtle" id="motivationText"></div>
+        <div class="immersive-hud" id="immersiveHud" aria-hidden="true">
+            <button class="hud-btn" id="hudToggleBtn" title="暂停/继续">⏸️</button>
+            <button class="quit-immersive-btn" id="quitImmersiveBtn" title="退出沉浸模式">✖</button>
+        </div>
         <div class="video-container idle" id="videoContainer">
-            <video id="video" autoplay playsinline></video>
+            <video id="video" autoplay playsinline class="blurred"></video>
             <canvas id="canvas"></canvas>
             <div class="warning-text" id="warningText">⚠️ 请回到屏幕前</div>
         </div>
         <div class="controls">
             <button id="startBtn">开始专注</button>
             <button id="resetBtn">重置</button>
-            <button id="blurBtn">🙈 模糊视频</button>
+            <button id="blurBtn">👁️ 显示视频</button>
+            <button id="immersiveBtn">🌌 沉浸模式</button>
         </div>
         <div class="phone-detection-toggle">
             <label class="toggle-switch">
